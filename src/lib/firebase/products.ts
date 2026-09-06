@@ -27,13 +27,15 @@ function mapProductDoc(docSnap: QueryDocumentSnapshot<DocumentData> | DocumentDa
     : (docSnap as DocumentData);
   const id = docSnap.id || data.id || "";
 
-  const createdAtStr = data.createdAt?.toDate?.()?.toISOString() 
-    || (typeof data.createdAt === "string" ? data.createdAt : undefined)
-    || new Date().toISOString();
+  const createdAtStr =
+  data.createdAt?.toDate?.()?.toISOString() ||
+  (typeof data.createdAt === "string" ? data.createdAt : "") ||
+  "";
 
-  const updatedAtStr = data.updatedAt?.toDate?.()?.toISOString() 
-    || (typeof data.updatedAt === "string" ? data.updatedAt : undefined)
-    || new Date().toISOString();
+  const updatedAtStr =
+  data.updatedAt?.toDate?.()?.toISOString() ||
+  (typeof data.updatedAt === "string" ? data.updatedAt : "") ||
+  createdAtStr;
 
   return {
     id,

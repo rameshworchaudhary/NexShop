@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   description: SITE_CONFIG.description,
 };
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export default async function HomePage() {
   // Fetch all homepage data in parallel
