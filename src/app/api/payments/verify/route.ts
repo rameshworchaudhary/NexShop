@@ -8,6 +8,7 @@ import { lookupKhaltiPayment } from "@/lib/payments/khalti";
 import { adminDb } from "@/lib/firebase/admin";
 import { COLLECTIONS } from "@/lib/firebase/collections";
 import { FieldValue } from "firebase-admin/firestore";
+import { sendAdminOrderNotification } from "@/lib/email/adminOrderNotification";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -147,6 +148,11 @@ async function markOrderPaymentSuccess(orderId: string, transactionId: string, p
       },
     ],
     updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // Safe, non-blocking admin order notification (idempotent via atomic transaction)
+  sendAdminOrderNotification(orderId).catch((notifErr) => {
+    console.error(`[PaymentsVerify] Failed to dispatch admin notification for order ${orderId}:`, notifErr);
   });
 
   return true;
