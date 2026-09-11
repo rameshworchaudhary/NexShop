@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "Browse all product categories on NexShop",
 };
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export default async function CategoriesPage() {
   const categories = await getActiveCategories();
