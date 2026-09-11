@@ -19,21 +19,38 @@ import type { Order } from "@/lib/types/order";
  */
 export async function getAdminRecipients(): Promise<string[]> {
   const emails = new Set<string>();
+  const emailPattern = /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+$/i;
+
+  const addRecipient = (value: unknown, source: string) => {
+    if (typeof value !== "string") return;
+
+    let recipient = value.trim();
+    if (
+      (recipient.startsWith('"') && recipient.endsWith('"')) ||
+      (recipient.startsWith("[") && recipient.endsWith("]"))
+    ) {
+      recipient = recipient.slice(1, -1).trim();
+    }
+
+    const normalized = recipient.toLowerCase();
+    if (!normalized || !emailPattern.test(normalized)) {
+      if (recipient) {
+        console.warn(
+          `[AdminOrderNotification] Invalid admin email recipient from ${source}: ${recipient}`
+        );
+      }
+      return;
+    }
+
+    emails.add(normalized);
+  };
 
   if (process.env.ADMIN_EMAILS) {
-    process.env.ADMIN_EMAILS.split(",").forEach((e) => {
-      const trimmed = e.trim().toLowerCase();
-      if (trimmed && trimmed.includes("@")) {
-        emails.add(trimmed);
-      }
-    });
+    process.env.ADMIN_EMAILS.split(",").forEach((email) => addRecipient(email, "ADMIN_EMAILS"));
   }
 
   if (process.env.ADMIN_EMAIL) {
-    const trimmed = process.env.ADMIN_EMAIL.trim().toLowerCase();
-    if (trimmed && trimmed.includes("@")) {
-      emails.add(trimmed);
-    }
+    addRecipient(process.env.ADMIN_EMAIL, "ADMIN_EMAIL");
   }
 
   // Fallback to Firestore admin query if no env variable is defined
@@ -48,9 +65,7 @@ export async function getAdminRecipients(): Promise<string[]> {
 
       adminUsersSnap.docs.forEach((docSnap) => {
         const uEmail = docSnap.data()?.email;
-        if (typeof uEmail === "string" && uEmail.includes("@")) {
-          emails.add(uEmail.trim().toLowerCase());
-        }
+        addRecipient(uEmail, `Firestore user ${docSnap.id}`);
       });
     } catch (err) {
       console.warn("[AdminOrderNotification] Could not query admin users from Firestore:", err);
@@ -59,7 +74,7 @@ export async function getAdminRecipients(): Promise<string[]> {
 
   // Final fallback to site contact email
   if (emails.size === 0 && SITE_CONFIG.contact.email) {
-    emails.add(SITE_CONFIG.contact.email.trim().toLowerCase());
+    addRecipient(SITE_CONFIG.contact.email, "SITE_CONFIG.contact.email");
   }
 
   return Array.from(emails);
@@ -80,6 +95,43 @@ function formatPrice(amount: number | undefined | null): string {
   return `Rs. ${num.toLocaleString("en-NP")}`;
 }
 
+function formatOrderDate(createdAt: unknown): string {
+  if (!createdAt) return "Just now";
+
+  let date: Date;
+  if (createdAt instanceof Date) {
+    date = createdAt;
+  } else if (
+    typeof createdAt === "object" &&
+    createdAt !== null &&
+    "toDate" in createdAt &&
+    typeof createdAt.toDate === "function"
+  ) {
+    date = createdAt.toDate();
+  } else if (
+    typeof createdAt === "object" &&
+    createdAt !== null &&
+    "seconds" in createdAt &&
+    typeof createdAt.seconds === "number"
+  ) {
+    date = new Date(createdAt.seconds * 1000);
+  } else {
+    date = new Date(createdAt as string | number);
+  }
+
+  if (Number.isNaN(date.getTime())) return "Just now";
+
+  return `${date.toLocaleString("en-US", {
+    timeZone: "Asia/Kathmandu",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })} NPT`;
+}
+
 /**
  * Generates email-safe, responsive HTML email for admin order notifications.
  */
@@ -96,17 +148,7 @@ export function generateAdminOrderEmailHtml(order: Order, adminOrderUrl: string)
       : "background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a;";
   const paymentStatusText = order.paymentStatus === "paid" ? "PAID" : "PENDING (COD)";
 
-  const dateStr = order.createdAt
-    ? new Date(order.createdAt).toLocaleString("en-US", {
-        timeZone: "Asia/Kathmandu",
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      }) + " (NPT)"
-    : "Just now";
+  const dateStr = formatOrderDate(order.createdAt);
 
   const address = order.shippingAddress;
   const fullAddress = address
@@ -495,11 +537,13 @@ export async function sendAdminOrderNotification(
       return { success: false, reason: "no_recipients", error: errMsg };
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || SITE_CONFIG.url || "https://nexshop.com.np";
+    const appUrl = (
+      process.env.NEXT_PUBLIC_APP_URL || "https://www.nexshoponline.com.np"
+    ).replace(/\/+$/, "");
     const adminOrderUrl = `${appUrl}/admin/orders/${order.id}`;
 
     const htmlContent = generateAdminOrderEmailHtml(order, adminOrderUrl);
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "NexShop Orders <onboarding@resend.dev>";
+    const fromEmail = process.env.EMAIL_FROM || "NexShop Orders <orders@nexshoponline.com.np>";
     const subject = `🛒 New Order Received — NexShop — #${order.orderNumber || order.id}`;
 
     const resend = new Resend(resendApiKey);
