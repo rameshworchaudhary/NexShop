@@ -19,21 +19,38 @@ import type { Order } from "@/lib/types/order";
  */
 export async function getAdminRecipients(): Promise<string[]> {
   const emails = new Set<string>();
+  const emailPattern = /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+$/i;
+
+  const addRecipient = (value: unknown, source: string) => {
+    if (typeof value !== "string") return;
+
+    let recipient = value.trim();
+    if (
+      (recipient.startsWith('"') && recipient.endsWith('"')) ||
+      (recipient.startsWith("[") && recipient.endsWith("]"))
+    ) {
+      recipient = recipient.slice(1, -1).trim();
+    }
+
+    const normalized = recipient.toLowerCase();
+    if (!normalized || !emailPattern.test(normalized)) {
+      if (recipient) {
+        console.warn(
+          `[AdminOrderNotification] Invalid admin email recipient from ${source}: ${recipient}`
+        );
+      }
+      return;
+    }
+
+    emails.add(normalized);
+  };
 
   if (process.env.ADMIN_EMAILS) {
-    process.env.ADMIN_EMAILS.split(",").forEach((e) => {
-      const trimmed = e.trim().toLowerCase();
-      if (trimmed && trimmed.includes("@")) {
-        emails.add(trimmed);
-      }
-    });
+    process.env.ADMIN_EMAILS.split(",").forEach((email) => addRecipient(email, "ADMIN_EMAILS"));
   }
 
   if (process.env.ADMIN_EMAIL) {
-    const trimmed = process.env.ADMIN_EMAIL.trim().toLowerCase();
-    if (trimmed && trimmed.includes("@")) {
-      emails.add(trimmed);
-    }
+    addRecipient(process.env.ADMIN_EMAIL, "ADMIN_EMAIL");
   }
 
   // Fallback to Firestore admin query if no env variable is defined
@@ -48,9 +65,7 @@ export async function getAdminRecipients(): Promise<string[]> {
 
       adminUsersSnap.docs.forEach((docSnap) => {
         const uEmail = docSnap.data()?.email;
-        if (typeof uEmail === "string" && uEmail.includes("@")) {
-          emails.add(uEmail.trim().toLowerCase());
-        }
+        addRecipient(uEmail, `Firestore user ${docSnap.id}`);
       });
     } catch (err) {
       console.warn("[AdminOrderNotification] Could not query admin users from Firestore:", err);
@@ -59,7 +74,7 @@ export async function getAdminRecipients(): Promise<string[]> {
 
   // Final fallback to site contact email
   if (emails.size === 0 && SITE_CONFIG.contact.email) {
-    emails.add(SITE_CONFIG.contact.email.trim().toLowerCase());
+    addRecipient(SITE_CONFIG.contact.email, "SITE_CONFIG.contact.email");
   }
 
   return Array.from(emails);
