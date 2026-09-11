@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: "Browse all products on NexShop",
 };
 
-export const revalidate = 60;
+export const revalidate = 3600;
 
 interface ProductsPageProps {
   searchParams: Promise<{
