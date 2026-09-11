@@ -7,7 +7,7 @@
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
@@ -44,6 +44,7 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",
     "recharts": "^2.15.0",
+    "resend": "^6.27.0",
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
@@ -64,4 +65,3 @@
     "typescript": "^5.7.2"
   }
 }
-

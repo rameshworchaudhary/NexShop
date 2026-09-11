@@ -51,6 +51,11 @@ export interface Order {
   statusHistory: OrderStatusHistoryEntry[];
   notes?: string;
   estimatedDelivery?: string;
+  adminNotificationStatus?: "pending" | "sending" | "sent" | "failed";
+  adminNotificationSentAt?: string;
+  adminNotificationFailedAt?: string;
+  adminNotificationLastError?: string;
+  adminNotificationResendId?: string;
   createdAt: string;
   updatedAt: string;
 }

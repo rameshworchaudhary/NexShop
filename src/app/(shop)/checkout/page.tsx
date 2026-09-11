@@ -167,6 +167,22 @@ export default function CheckoutPage() {
       } else if (paymentMethod === "khalti") {
         await initiateKhaltiPayment(orderId, total, orderNumber);
       } else {
+        try {
+          const idToken = await user.getIdToken();
+          fetch("/api/orders/notify-admin", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ orderId }),
+          }).catch((notifyErr) => {
+            console.error("Non-blocking admin notification error:", notifyErr);
+          });
+        } catch (tokenErr) {
+          console.error("Failed to obtain token for admin notification:", tokenErr);
+        }
+
         clearCart();
         toast.success("Order placed successfully!");
         router.push(`/orders/${orderId}?success=true`);
