@@ -80,6 +80,43 @@ function formatPrice(amount: number | undefined | null): string {
   return `Rs. ${num.toLocaleString("en-NP")}`;
 }
 
+function formatOrderDate(createdAt: unknown): string {
+  if (!createdAt) return "Just now";
+
+  let date: Date;
+  if (createdAt instanceof Date) {
+    date = createdAt;
+  } else if (
+    typeof createdAt === "object" &&
+    createdAt !== null &&
+    "toDate" in createdAt &&
+    typeof createdAt.toDate === "function"
+  ) {
+    date = createdAt.toDate();
+  } else if (
+    typeof createdAt === "object" &&
+    createdAt !== null &&
+    "seconds" in createdAt &&
+    typeof createdAt.seconds === "number"
+  ) {
+    date = new Date(createdAt.seconds * 1000);
+  } else {
+    date = new Date(createdAt as string | number);
+  }
+
+  if (Number.isNaN(date.getTime())) return "Just now";
+
+  return `${date.toLocaleString("en-US", {
+    timeZone: "Asia/Kathmandu",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })} NPT`;
+}
+
 /**
  * Generates email-safe, responsive HTML email for admin order notifications.
  */
@@ -96,17 +133,7 @@ export function generateAdminOrderEmailHtml(order: Order, adminOrderUrl: string)
       : "background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a;";
   const paymentStatusText = order.paymentStatus === "paid" ? "PAID" : "PENDING (COD)";
 
-  const dateStr = order.createdAt
-    ? new Date(order.createdAt).toLocaleString("en-US", {
-        timeZone: "Asia/Kathmandu",
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      }) + " (NPT)"
-    : "Just now";
+  const dateStr = formatOrderDate(order.createdAt);
 
   const address = order.shippingAddress;
   const fullAddress = address
@@ -495,11 +522,13 @@ export async function sendAdminOrderNotification(
       return { success: false, reason: "no_recipients", error: errMsg };
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || SITE_CONFIG.url || "https://nexshop.com.np";
+    const appUrl = (
+      process.env.NEXT_PUBLIC_APP_URL || "https://www.nexshoponline.com.np"
+    ).replace(/\/+$/, "");
     const adminOrderUrl = `${appUrl}/admin/orders/${order.id}`;
 
     const htmlContent = generateAdminOrderEmailHtml(order, adminOrderUrl);
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "NexShop Orders <onboarding@resend.dev>";
+    const fromEmail = process.env.EMAIL_FROM || "NexShop Orders <orders@nexshoponline.com.np>";
     const subject = `🛒 New Order Received — NexShop — #${order.orderNumber || order.id}`;
 
     const resend = new Resend(resendApiKey);
