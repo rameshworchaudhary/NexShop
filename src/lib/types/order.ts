@@ -56,6 +56,9 @@ export interface Order {
   adminNotificationFailedAt?: string;
   adminNotificationLastError?: string;
   adminNotificationResendId?: string;
+  isGuest?: boolean;
+  guestAccessToken?: string;
+  claimedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,6 +67,8 @@ export interface CreateOrderInput {
   userId: string;
   userEmail: string;
   userName: string;
+  isGuest?: boolean;
+  guestAccessToken?: string;
   items: OrderItem[];
   subtotal: number;
   shippingCharge: number;

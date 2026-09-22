@@ -8,17 +8,17 @@ export const dynamic = "force-dynamic";
 
 interface OrderDetailPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ success?: string }>;
+  searchParams: Promise<{ success?: string; token?: string }>;
 }
 
 export default async function OrderDetailPage({ params, searchParams }: OrderDetailPageProps) {
   const { id } = await params;
-  const { success } = await searchParams;
+  const { success, token } = await searchParams;
 
   const order = await getOrderById(id);
   if (!order) notFound();
 
   const serializedOrder = JSON.parse(JSON.stringify(order));
 
-  return <CustomerOrderDetailView order={serializedOrder} success={success} />;
+  return <CustomerOrderDetailView order={serializedOrder} success={success} token={token} />;
 }
