@@ -67,17 +67,32 @@ async function handleEsewaVerification(request: NextRequest, orderId: string) {
   }
 
   const paidAmount = Number(decoded.total_amount || 0);
-  const success = await markOrderPaymentSuccess(
+  const result = await markOrderPaymentSuccess(
     orderId,
     decoded.transaction_code || decoded.transaction_uuid,
     paidAmount
   );
 
-  if (!success) {
+  if (!result.success) {
     return NextResponse.redirect(`${appUrl}/checkout?payment=failed&reason=amount_mismatch&orderId=${orderId}`);
   }
 
-  return NextResponse.redirect(`${appUrl}/orders/${orderId}?success=true`);
+  const redirectUrl = result.guestAccessToken
+    ? `${appUrl}/orders/${orderId}?success=true&token=${result.guestAccessToken}`
+    : `${appUrl}/orders/${orderId}?success=true`;
+  const response = NextResponse.redirect(redirectUrl);
+
+  if (result.guestAccessToken) {
+    response.cookies.set(`nexshop_guest_${orderId}`, result.guestAccessToken, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+  }
+
+  return response;
 }
 
 async function handleKhaltiVerification(request: NextRequest, orderId: string) {
@@ -103,33 +118,53 @@ async function handleKhaltiVerification(request: NextRequest, orderId: string) {
 
   // Khalti total_amount is in paisa (1 NPR = 100 paisa)
   const paidAmountNpr = lookup.total_amount ? lookup.total_amount / 100 : 0;
-  const success = await markOrderPaymentSuccess(
+  const result = await markOrderPaymentSuccess(
     orderId,
     lookup.transaction_id || pidx,
     paidAmountNpr
   );
 
-  if (!success) {
+  if (!result.success) {
     return NextResponse.redirect(`${appUrl}/checkout?payment=failed&reason=amount_mismatch&orderId=${orderId}`);
   }
 
-  return NextResponse.redirect(`${appUrl}/orders/${orderId}?success=true`);
+  const redirectUrl = result.guestAccessToken
+    ? `${appUrl}/orders/${orderId}?success=true&token=${result.guestAccessToken}`
+    : `${appUrl}/orders/${orderId}?success=true`;
+  const response = NextResponse.redirect(redirectUrl);
+
+  if (result.guestAccessToken) {
+    response.cookies.set(`nexshop_guest_${orderId}`, result.guestAccessToken, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+  }
+
+  return response;
 }
 
-async function markOrderPaymentSuccess(orderId: string, transactionId: string, paidAmount?: number): Promise<boolean> {
+async function markOrderPaymentSuccess(
+  orderId: string,
+  transactionId: string,
+  paidAmount?: number
+): Promise<{ success: boolean; guestAccessToken?: string }> {
   const ref = adminDb.collection(COLLECTIONS.ORDERS).doc(orderId);
   const snap = await ref.get();
-  if (!snap.exists) return false;
+  if (!snap.exists) return { success: false };
 
   const data = snap.data();
   const orderTotal = data?.total;
+  const guestAccessToken = data?.guestAccessToken;
 
   // Validate that paid amount matches order total within reasonable margin (< 1 NPR difference)
   if (paidAmount !== undefined && orderTotal !== undefined) {
     if (Math.abs(paidAmount - orderTotal) > 1) {
       console.error(`Payment amount mismatch for order ${orderId}: expected ${orderTotal}, got ${paidAmount}`);
       await markOrderPaymentFailed(orderId);
-      return false;
+      return { success: false };
     }
   }
 
@@ -155,7 +190,7 @@ async function markOrderPaymentSuccess(orderId: string, transactionId: string, p
     console.error(`[PaymentsVerify] Failed to dispatch admin notification for order ${orderId}:`, notifErr);
   });
 
-  return true;
+  return { success: true, guestAccessToken };
 }
 
 async function markOrderPaymentFailed(orderId: string) {

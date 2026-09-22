@@ -20,29 +20,47 @@ import {
 import { isValidNepaliPhone } from "@/lib/utils";
 import type { DeliveryAddress } from "@/lib/types/nepal-address";
 
-const addressSchema = z.object({
-  fullName: z.string().min(2, "Full name is required"),
-  phone: z.string().refine(isValidNepaliPhone, "Enter a valid Nepali phone number (98XXXXXXXX)"),
-  alternatePhone: z
-    .string()
-    .optional()
-    .refine((v) => !v || isValidNepaliPhone(v), "Enter a valid Nepali phone number"),
-  province: z.string().min(1, "Province is required"),
-  district: z.string().min(1, "District is required"),
-  municipality: z.string().min(1, "Municipality is required"),
-  ward: z.coerce.number().min(1, "Ward number is required"),
-  streetAddress: z.string().min(5, "Street address is required"),
-  landmark: z.string().optional(),
-  isDefault: z.boolean().default(false),
-});
+const createAddressSchema = (requireEmail: boolean) =>
+  z.object({
+    fullName: z.string().min(2, "Full name is required"),
+    email: requireEmail
+      ? z.string().min(1, "Email address is required for guest checkout").email("Please enter a valid email address")
+      : z.string().email("Please enter a valid email address").optional().or(z.literal("")),
+    phone: z.string().refine(isValidNepaliPhone, "Enter a valid Nepali phone number (98XXXXXXXX)"),
+    alternatePhone: z
+      .string()
+      .optional()
+      .refine((v) => !v || isValidNepaliPhone(v), "Enter a valid Nepali phone number"),
+    province: z.string().min(1, "Province is required"),
+    district: z.string().min(1, "District is required"),
+    municipality: z.string().min(1, "Municipality is required"),
+    ward: z.coerce.number().min(1, "Ward number is required"),
+    streetAddress: z.string().min(5, "Street address is required"),
+    landmark: z.string().optional(),
+    isDefault: z.boolean().default(false),
+  });
 
-export type AddressFormData = z.infer<typeof addressSchema>;
+export type AddressFormData = {
+  fullName: string;
+  email?: string;
+  phone: string;
+  alternatePhone?: string;
+  province: string;
+  district: string;
+  municipality: string;
+  ward: number;
+  streetAddress: string;
+  landmark?: string;
+  isDefault: boolean;
+};
 
 interface AddressFormProps {
-  defaultValues?: Partial<DeliveryAddress>;
+  defaultValues?: Partial<DeliveryAddress & { email?: string }>;
   onSubmit: (data: AddressFormData) => Promise<void>;
   submitLabel?: string;
   onCancel?: () => void;
+  requireEmail?: boolean;
+  isGuest?: boolean;
 }
 
 export default function AddressForm({
@@ -50,6 +68,8 @@ export default function AddressForm({
   onSubmit,
   submitLabel = "Save Address",
   onCancel,
+  requireEmail = false,
+  isGuest = false,
 }: AddressFormProps) {
   const [selectedProvince, setSelectedProvince] = useState(defaultValues?.province || "");
   const [selectedDistrict, setSelectedDistrict] = useState(defaultValues?.district || "");
@@ -60,6 +80,8 @@ export default function AddressForm({
   const districts = selectedProvince ? getDistrictsByProvince(selectedProvince) : [];
   const municipalities = selectedDistrict ? getMunicipalitiesByDistrict(selectedDistrict) : [];
 
+  const formSchema = React.useMemo(() => createAddressSchema(requireEmail), [requireEmail]);
+
   const {
     register,
     handleSubmit,
@@ -67,9 +89,10 @@ export default function AddressForm({
     formState: { errors, isSubmitting },
     watch,
   } = useForm<AddressFormData>({
-    resolver: zodResolver(addressSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: defaultValues?.fullName || "",
+      email: defaultValues?.email || "",
       phone: defaultValues?.phone || "",
       alternatePhone: defaultValues?.alternatePhone || "",
       province: defaultValues?.province || "",
@@ -132,6 +155,22 @@ export default function AddressForm({
           {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
         </div>
       </div>
+
+      {requireEmail && (
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Email Address *</Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="customer@example.com"
+            {...register("email")}
+          />
+          <p className="text-xs text-muted-foreground">
+            Order confirmation, receipt, and tracking details will be sent to this email.
+          </p>
+          {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="alternatePhone">Alternate Phone (Optional)</Label>
@@ -221,14 +260,16 @@ export default function AddressForm({
       </div>
 
       {/* Default checkbox */}
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="isDefault"
-          checked={isDefault}
-          onCheckedChange={(v) => setValue("isDefault", Boolean(v))}
-        />
-        <Label htmlFor="isDefault" className="cursor-pointer">Set as default address</Label>
-      </div>
+      {!isGuest && (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="isDefault"
+            checked={isDefault}
+            onCheckedChange={(v) => setValue("isDefault", Boolean(v))}
+          />
+          <Label htmlFor="isDefault" className="cursor-pointer">Set as default address</Label>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">
