@@ -448,9 +448,16 @@ export default function CustomerOrderDetailView({
                 </p>
               )}
               <div className="pt-2 text-muted-foreground leading-relaxed">
-                <p>{order.shippingAddress.streetAddress}, Ward {order.shippingAddress.ward}</p>
-                <p>{order.shippingAddress.municipality}, {order.shippingAddress.district}</p>
-                <p>{order.shippingAddress.province}, Nepal</p>
+                <p>
+                  {order.shippingAddress.streetAddress}
+                  {order.shippingAddress.ward ? `, Ward ${order.shippingAddress.ward}` : ""}
+                </p>
+                {(order.shippingAddress.municipality || order.shippingAddress.district) && (
+                  <p>{[order.shippingAddress.municipality, order.shippingAddress.district].filter(Boolean).join(", ")}</p>
+                )}
+                {order.shippingAddress.province && (
+                  <p>{order.shippingAddress.province}, Nepal</p>
+                )}
               </div>
               {order.shippingAddress.landmark && (
                 <div className="pt-2">

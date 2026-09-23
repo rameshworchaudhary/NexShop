@@ -153,7 +153,11 @@ export default function AdminOrderDetailClient({ order: initialOrder }: AdminOrd
             <CardHeader><CardTitle className="text-base">Customer</CardTitle></CardHeader>
             <CardContent className="space-y-1.5">
               <p className="text-sm font-medium">{order.userName}</p>
-              <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> {order.userEmail}</p>
+              {order.userEmail ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> {order.userEmail}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> Direct Buyer (No email)</p>
+              )}
             </CardContent>
           </Card>
 
@@ -164,7 +168,13 @@ export default function AdminOrderDetailClient({ order: initialOrder }: AdminOrd
               <p className="text-sm font-medium">{order.shippingAddress.fullName}</p>
               <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> {order.shippingAddress.phone}</p>
               <p className="text-xs text-muted-foreground mt-2">
-                {order.shippingAddress.streetAddress}, Ward {order.shippingAddress.ward}, {order.shippingAddress.municipality}, {order.shippingAddress.district}, {order.shippingAddress.province}
+                {[
+                  order.shippingAddress.streetAddress,
+                  order.shippingAddress.ward ? `Ward ${order.shippingAddress.ward}` : null,
+                  order.shippingAddress.municipality,
+                  order.shippingAddress.district,
+                  order.shippingAddress.province,
+                ].filter(Boolean).join(", ")}
               </p>
             </CardContent>
           </Card>

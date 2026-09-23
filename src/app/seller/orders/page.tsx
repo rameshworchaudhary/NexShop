@@ -183,7 +183,7 @@ export default function SellerOrdersPage() {
                           <span className="text-muted-foreground leading-relaxed">
                             {[
                               order.shippingAddress?.streetAddress,
-                              `Ward ${order.shippingAddress?.ward}`,
+                              order.shippingAddress?.ward ? `Ward ${order.shippingAddress?.ward}` : null,
                               order.shippingAddress?.municipality,
                               order.shippingAddress?.district,
                               order.shippingAddress?.province,

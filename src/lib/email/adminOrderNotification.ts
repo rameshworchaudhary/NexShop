@@ -154,7 +154,7 @@ export function generateAdminOrderEmailHtml(order: Order, adminOrderUrl: string)
   const fullAddress = address
     ? [
         address.streetAddress,
-        `Ward ${address.ward}`,
+        address.ward ? `Ward ${address.ward}` : undefined,
         address.municipality,
         address.district,
         address.province,
@@ -281,9 +281,13 @@ export function generateAdminOrderEmailHtml(order: Order, adminOrderUrl: string)
                         👤 Customer Details
                       </div>
                       <div style="font-size: 14px; font-weight: 600; color: #0f172a;">${escapeHtml(order.userName || "Customer")}</div>
-                      <div style="font-size: 13px; color: #475569; margin-top: 3px;">
-                        <a href="mailto:${escapeHtml(order.userEmail)}" style="color: #2563eb; text-decoration: none;">${escapeHtml(order.userEmail)}</a>
-                      </div>
+                      ${
+                        order.userEmail
+                          ? `<div style="font-size: 13px; color: #475569; margin-top: 3px;">
+                              <a href="mailto:${escapeHtml(order.userEmail)}" style="color: #2563eb; text-decoration: none;">${escapeHtml(order.userEmail)}</a>
+                            </div>`
+                          : `<div style="font-size: 13px; color: #64748b; margin-top: 3px;">Direct Buyer (No email)</div>`
+                      }
                       ${
                         address?.phone
                           ? `<div style="font-size: 13px; color: #475569; margin-top: 3px;">📞 ${escapeHtml(address.phone)}</div>`
