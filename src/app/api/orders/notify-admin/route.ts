@@ -19,27 +19,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized: Missing authentication token" }, { status: 401 });
-    }
-
-    const token = authHeader.split("Bearer ")[1]?.trim();
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized: Invalid token format" }, { status: 401 });
-    }
-
-    let decodedToken;
-    try {
-      decodedToken = await adminAuth.verifyIdToken(token);
-    } catch (authErr) {
-      console.error("[NotifyAdminAPI] Token verification failed:", authErr);
-      return NextResponse.json({ error: "Unauthorized: Token verification failed" }, { status: 401 });
-    }
-
-    const uid = decodedToken.uid;
-    if (!uid) {
-      return NextResponse.json({ error: "Unauthorized: No UID in token" }, { status: 401 });
-    }
+    const guestTokenHeader = request.headers.get("x-guest-token");
 
     const body = await request.json().catch(() => null);
     const orderId = body?.orderId;
@@ -57,23 +37,51 @@ export async function POST(request: NextRequest) {
 
     const orderData = orderSnap.data();
 
-    // Verify ownership: order must belong to the authenticated user
-    // (or an admin user)
-    const isOwner = orderData?.userId === uid;
-    const isAdmin = decodedToken.role === "admin" || decodedToken.admin === true;
-
-    if (!isOwner && !isAdmin) {
-      return NextResponse.json(
-        { error: "Forbidden: Order does not belong to authenticated user" },
-        { status: 403 }
-      );
-    }
-
     // Verify payment method is COD
     if (orderData?.paymentMethod !== "cod") {
       return NextResponse.json(
         { error: "Bad Request: Endpoint only processes Cash on Delivery (COD) orders" },
         { status: 400 }
+      );
+    }
+
+    // Check Guest Authorization
+    const isGuestOrder = orderData?.isGuest === true || orderData?.userId === "guest";
+    let isAuthorized = false;
+
+    if (isGuestOrder) {
+      const providedGuestToken =
+        guestTokenHeader ||
+        (authHeader && authHeader.startsWith("Guest ") ? authHeader.split("Guest ")[1]?.trim() : null);
+
+      if (providedGuestToken && orderData?.guestAccessToken && providedGuestToken === orderData.guestAccessToken) {
+        isAuthorized = true;
+      }
+    }
+
+    // If not authorized as guest, check Firebase ID Token
+    if (!isAuthorized && authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split("Bearer ")[1]?.trim();
+      if (token) {
+        try {
+          const decodedToken = await adminAuth.verifyIdToken(token);
+          const uid = decodedToken.uid;
+          const isOwner = orderData?.userId === uid;
+          const isAdmin = decodedToken.role === "admin" || decodedToken.admin === true;
+
+          if (isOwner || isAdmin) {
+            isAuthorized = true;
+          }
+        } catch (authErr) {
+          console.error("[NotifyAdminAPI] Token verification failed:", authErr);
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { error: "Unauthorized: Invalid credentials for this order" },
+        { status: 403 }
       );
     }
 
