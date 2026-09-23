@@ -16,8 +16,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrdersByUser } from "@/lib/firebase/orders";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getGuestOrders, removeGuestOrder, clearGuestOrders } from "@/lib/guestOrders";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants/site";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, PAYMENT_METHOD_LABELS } from "@/lib/constants/site";
 import type { Order } from "@/lib/types/order";
+import type { StoredGuestOrder } from "@/lib/guestOrders";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -26,6 +27,7 @@ export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [guestOrders, setGuestOrders] = useState<Order[]>([]);
+  const [storedEntries, setStoredEntries] = useState<StoredGuestOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [isLinking, setIsLinking] = useState(false);
 
@@ -41,6 +43,7 @@ export default function OrdersPage() {
       setLoading(true);
       try {
         const storedGuestEntries = getGuestOrders();
+        if (isMounted) setStoredEntries(storedGuestEntries);
 
         if (user) {
           // Fetch user's registered orders
@@ -259,15 +262,15 @@ export default function OrdersPage() {
           <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
             <ShoppingBag className="h-10 w-10 text-muted-foreground" />
           </div>
-          <h3 className="font-bold text-lg text-foreground">No orders found</h3>
+          <h3 className="font-bold text-lg text-foreground">No orders yet</h3>
           <p className="text-xs text-muted-foreground mt-1 mb-6 max-w-sm">
             {user
               ? "You haven't placed any orders with this account yet. Browse our catalog to get started!"
-              : "No guest orders were found stored on this browser. If you placed an order from another device, use the lookup below."}
+              : "No orders yet. Discover our latest collections and start shopping today!"}
           </p>
           <div className="flex items-center gap-3">
             <Button asChild size="sm">
-              <Link href="/products">Start Shopping</Link>
+              <Link href="/products">Continue Shopping</Link>
             </Button>
             {!user && (
               <Button asChild size="sm" variant="outline">
@@ -280,63 +283,91 @@ export default function OrdersPage() {
         <div className="space-y-4">
           {orders.map((order) => {
             const isGuest = Boolean(order.isGuest || !order.userId || order.userId === "guest");
-            const tokenParam = order.guestAccessToken ? `?token=${order.guestAccessToken}` : "";
+            const stored = storedEntries.find((o) => o.orderId === order.id);
+            const effectiveToken = order.guestAccessToken || stored?.token || "";
+            const tokenParam = effectiveToken ? `?token=${effectiveToken}` : "";
+            const targetUrl = `/orders/${order.id}${tokenParam}`;
+
+            const paymentMethodLabel =
+              PAYMENT_METHOD_LABELS[order.paymentMethod] ||
+              (order.paymentMethod === "cod" ? "Pay on Delivery" : String(order.paymentMethod));
 
             return (
-              <Link key={order.id} href={`/orders/${order.id}${tokenParam}`}>
-                <Card className="hover:border-primary hover:shadow-md transition-all">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-sm">Order #{order.orderNumber}</p>
-                          {isGuest && (
-                            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-200">
-                              Guest Order
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Placed on {formatDate(order.createdAt)}
-                        </p>
-                      </div>
-                      <Badge className={ORDER_STATUS_COLORS[order.status]}>
-                        {ORDER_STATUS_LABELS[order.status]}
-                      </Badge>
-                    </div>
-
-                    {/* Item thumbnails */}
-                    <div className="flex items-center gap-2 mb-3">
-                      {order.items.slice(0, 4).map((item, i) => (
-                        <div key={i} className="relative h-12 w-12 rounded-lg overflow-hidden bg-muted border flex-shrink-0">
-                          <Image
-                            src={item.productImage || "/images/placeholder.jpg"}
-                            alt={item.productName}
-                            fill
-                            className="object-cover"
-                            sizes="48px"
-                          />
-                        </div>
-                      ))}
-                      {order.items.length > 4 && (
-                        <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground flex-shrink-0">
-                          +{order.items.length - 4}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <p className="text-xs text-muted-foreground">
-                        {order.items.length} {order.items.length === 1 ? "item" : "items"}
-                      </p>
+              <Card
+                key={order.id}
+                className="hover:border-primary/60 hover:shadow-md transition-all overflow-hidden"
+              >
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-primary">{formatCurrency(order.total)}</span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <p className="font-semibold text-sm">Order #{order.orderNumber}</p>
+                        {isGuest && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-amber-50 text-amber-800 border-amber-200"
+                          >
+                            Guest Order
+                          </Badge>
+                        )}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Placed on {formatDate(order.createdAt)}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                    <Badge className={ORDER_STATUS_COLORS[order.status]}>
+                      {ORDER_STATUS_LABELS[order.status]}
+                    </Badge>
+                  </div>
+
+                  {/* Item thumbnails */}
+                  <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+                    {order.items.slice(0, 4).map((item, i) => (
+                      <div
+                        key={i}
+                        className="relative h-14 w-14 rounded-lg overflow-hidden bg-muted border shrink-0"
+                      >
+                        <Image
+                          src={item.productImage || "/images/placeholder.jpg"}
+                          alt={item.productName}
+                          fill
+                          className="object-cover"
+                          sizes="56px"
+                        />
+                      </div>
+                    ))}
+                    {order.items.length > 4 && (
+                      <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
+                        +{order.items.length - 4}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Order meta & View Order action */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border/60">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {order.items.length} {order.items.length === 1 ? "item" : "items"}
+                      </span>
+                      <span>•</span>
+                      <span>{paymentMethodLabel}</span>
+                      <span>•</span>
+                      <span className="font-bold text-sm text-primary">
+                        {formatCurrency(order.total)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button asChild size="sm" className="text-xs h-8 gap-1.5 font-semibold">
+                        <Link href={targetUrl}>
+                          <span>Order Details</span>
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>

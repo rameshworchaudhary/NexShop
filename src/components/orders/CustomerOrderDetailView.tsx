@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import OrderTimeline from "@/components/orders/OrderTimeline";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
-import { getGuestOrders, removeGuestOrder } from "@/lib/guestOrders";
+import { getGuestOrders, removeGuestOrder, saveGuestOrder } from "@/lib/guestOrders";
 import {
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
   PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS,
@@ -64,6 +64,20 @@ export default function CustomerOrderDetailView({
   })();
 
   const isAuthorized = isOwner || isAdmin || (isGuestOrder && (hasDirectGuestAccess || hasManuallyVerified));
+
+  // If the guest is viewing with a valid token, ensure it's saved in local storage for "My Orders"
+  useEffect(() => {
+    if (isGuestOrder && order.id && order.guestAccessToken) {
+      if (initialToken === order.guestAccessToken || hasManuallyVerified || hasDirectGuestAccess) {
+        saveGuestOrder({
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          token: order.guestAccessToken,
+          email: order.userEmail || "",
+        });
+      }
+    }
+  }, [isGuestOrder, order.id, order.guestAccessToken, order.orderNumber, order.userEmail, initialToken, hasManuallyVerified, hasDirectGuestAccess]);
 
   const handleCopyTrackingLink = () => {
     const token = order.guestAccessToken || initialToken || "";
