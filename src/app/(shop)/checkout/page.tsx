@@ -129,17 +129,82 @@ export default function CheckoutPage() {
     setStep(1);
   };
 
-  // Handler for unauthenticated direct buyer simple address form (Name, Contact Number, Address)
-  const handleDirectAddressSubmit = (data: DirectAddressFormData) => {
-    const address: DeliveryAddress = {
-      fullName: data.fullName.trim(),
-      phone: data.phone.trim(),
-      streetAddress: data.address.trim(),
-      isDefault: false,
-    };
+  // Dedicated single-page order placement for unauthenticated guest direct buyers
+  const handleGuestPlaceOrder = async (data: DirectAddressFormData) => {
+    setIsPlacingOrder(true);
+    try {
+      const address: DeliveryAddress = {
+        fullName: data.fullName.trim(),
+        phone: data.phone.trim(),
+        streetAddress: data.address.trim(),
+        isDefault: false,
+      };
+      setShippingAddress(address);
 
-    setShippingAddress(address);
-    setStep(1);
+      const orderItems = items.map((item) => ({
+        productId: item.productId,
+        productName: item.name,
+        productImage: item.image,
+        productSlug: item.slug,
+        variant: item.variant,
+        price: item.price,
+        quantity: item.quantity,
+        subtotal: item.price * item.quantity,
+      }));
+
+      const res = await fetch("/api/orders/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: "guest",
+          userEmail: "",
+          userName: address.fullName,
+          isGuest: true,
+          items: orderItems,
+          subtotal,
+          shippingCharge,
+          discount,
+          couponCode: couponResult?.valid ? couponCode.toUpperCase() : undefined,
+          total,
+          shippingAddress: address,
+          paymentMethod: "cod",
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to create order");
+      }
+
+      const { id: orderId, orderNumber, guestAccessToken } = await res.json();
+
+      // Store guest order credentials in browser localStorage for secure My Orders access
+      if (guestAccessToken) {
+        saveGuestOrder({
+          orderId,
+          orderNumber,
+          token: guestAccessToken,
+          email: "",
+        });
+      }
+
+      clearCart();
+      toast.success("Order placed successfully!");
+
+      // DIRECT REDIRECT to existing Order Details page
+      const targetUrl = guestAccessToken
+        ? `/orders/${orderId}?token=${guestAccessToken}&success=true`
+        : `/orders/${orderId}?success=true`;
+      router.push(targetUrl);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to place order. Please try again.";
+      console.error("Guest order placement failed:", err);
+      toast.error(errMsg);
+    } finally {
+      setIsPlacingOrder(false);
+    }
   };
 
   const handleApplyCoupon = async () => {
@@ -313,140 +378,162 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* Step Indicator */}
-      <div className="flex items-center justify-center mb-10">
-        {STEPS.map((s, i) => (
-          <React.Fragment key={s}>
-            <div className="flex flex-col items-center">
-              <div
-                className={cn(
-                  "h-9 w-9 rounded-full flex items-center justify-center font-semibold text-sm transition-all",
-                  i < step
-                    ? "bg-green-500 text-white"
-                    : i === step
-                    ? "bg-primary text-white"
-                    : "bg-muted text-muted-foreground"
-                )}
-              >
-                {i < step ? <CheckCircle className="h-5 w-5" /> : i + 1}
+      {/* Step Indicator - Only for authenticated users */}
+      {user && (
+        <div className="flex items-center justify-center mb-10">
+          {STEPS.map((s, i) => (
+            <React.Fragment key={s}>
+              <div className="flex flex-col items-center">
+                <div
+                  className={cn(
+                    "h-9 w-9 rounded-full flex items-center justify-center font-semibold text-sm transition-all",
+                    i < step
+                      ? "bg-green-500 text-white"
+                      : i === step
+                      ? "bg-primary text-white"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {i < step ? <CheckCircle className="h-5 w-5" /> : i + 1}
+                </div>
+                <span
+                  className={cn(
+                    "text-xs mt-1 font-medium",
+                    i === step ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {s}
+                </span>
               </div>
-              <span
-                className={cn(
-                  "text-xs mt-1 font-medium",
-                  i === step ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                {s}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && (
-              <div
-                className={cn(
-                  "flex-1 h-0.5 mx-2 mb-4",
-                  i < step ? "bg-green-500" : "bg-muted"
-                )}
-              />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
+              {i < STEPS.length - 1 && (
+                <div
+                  className={cn(
+                    "flex-1 h-0.5 mx-2 mb-4",
+                    i < step ? "bg-green-500" : "bg-muted"
+                  )}
+                />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left: Steps */}
-        <div className="lg:col-span-2">
-          <AnimatePresence mode="wait">
-            {/* Step 0: Address */}
-            {step === 0 && (
-              <motion.div
-                key="address"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between flex-wrap gap-2">
+        {!user ? (
+          /* Direct Single-Page Guest Checkout */
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-primary" /> Delivery Address
+                  </CardTitle>
+                  <Badge variant="outline" className="text-xs bg-muted/50">
+                    Direct Guest Checkout
+                  </Badge>
+                </div>
+                <CardDescription>
+                  Enter your name, contact number, and complete delivery address to place your order directly.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Optional Sign-in Banner for direct unauthenticated buyers */}
+                <div className="flex items-center justify-between p-3.5 mb-5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                  <span className="text-foreground font-medium">
+                    Direct purchase — No login or password required.
+                  </span>
+                  <Link
+                    href="/login?redirect=/checkout"
+                    className="font-semibold text-primary hover:underline flex items-center gap-1 shrink-0 ml-2"
+                  >
+                    <LogIn className="h-3.5 w-3.5" /> Sign in for saved addresses
+                  </Link>
+                </div>
+
+                <DirectAddressForm
+                  defaultValues={{
+                    fullName: shippingAddress?.fullName || "",
+                    phone: shippingAddress?.phone || "",
+                    address: shippingAddress?.streetAddress || "",
+                  }}
+                  onSubmit={handleGuestPlaceOrder}
+                  isPlacingOrder={isPlacingOrder}
+                  total={total}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          /* Left: 3-step flow for authenticated accounts */
+          <div className="lg:col-span-2">
+            <AnimatePresence mode="wait">
+              {/* Step 0: Address */}
+              {step === 0 && (
+                <motion.div
+                  key="address"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <Card>
+                    <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <MapPin className="h-5 w-5 text-primary" /> Delivery Address
                       </CardTitle>
-                      {!user && (
-                        <Badge variant="outline" className="text-xs bg-muted/50">
-                          Direct Checkout
-                        </Badge>
-                      )}
-                    </div>
-                    <CardDescription>
-                      {user
-                        ? "Confirm or select your delivery address for this order."
-                        : "Enter your name, contact number, and complete delivery address to place your order directly."}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {/* Optional Sign-in Banner for direct unauthenticated buyers */}
-                    {!user && (
-                      <div className="flex items-center justify-between p-3.5 mb-5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
-                        <span className="text-foreground font-medium">
-                          Direct purchase — No login or password required.
-                        </span>
-                        <Link
-                          href="/login?redirect=/checkout"
-                          className="font-semibold text-primary hover:underline flex items-center gap-1 shrink-0 ml-2"
-                        >
-                          <LogIn className="h-3.5 w-3.5" /> Sign in for saved addresses
-                        </Link>
-                      </div>
-                    )}
-
-                    {/* Saved addresses for authenticated users */}
-                    {user && profile?.addresses && profile.addresses.length > 0 && (
-                      <div className="mb-6">
-                        <p className="text-sm font-medium mb-3">Saved Addresses</p>
-                        <div className="space-y-2">
-                          {profile.addresses.map((addr) => (
-                            <div
-                              key={addr.id}
-                              onClick={() => {
-                                setShippingAddress(addr);
-                                setStep(1);
-                              }}
-                              className={cn(
-                                "border rounded-lg p-3 cursor-pointer transition-all hover:border-primary",
-                                shippingAddress?.id === addr.id
-                                  ? "border-primary bg-primary/5"
-                                  : ""
-                              )}
-                            >
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <p className="font-medium text-sm">{addr.fullName}</p>
-                                  <p className="text-xs text-muted-foreground">{addr.phone}</p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {[
-                                      addr.streetAddress,
-                                      addr.ward ? `Ward ${addr.ward}` : null,
-                                      addr.municipality,
-                                      addr.district,
-                                      addr.province,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(", ")}
-                                  </p>
-                                </div>
-                                {addr.isDefault && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Default
-                                  </Badge>
+                      <CardDescription>
+                        Confirm or select your delivery address for this order.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {/* Saved addresses for authenticated users */}
+                      {profile?.addresses && profile.addresses.length > 0 && (
+                        <div className="mb-6">
+                          <p className="text-sm font-medium mb-3">Saved Addresses</p>
+                          <div className="space-y-2">
+                            {profile.addresses.map((addr) => (
+                              <div
+                                key={addr.id}
+                                onClick={() => {
+                                  setShippingAddress(addr);
+                                  setStep(1);
+                                }}
+                                className={cn(
+                                  "border rounded-lg p-3 cursor-pointer transition-all hover:border-primary",
+                                  shippingAddress?.id === addr.id
+                                    ? "border-primary bg-primary/5"
+                                    : ""
                                 )}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <p className="font-medium text-sm">{addr.fullName}</p>
+                                    <p className="text-xs text-muted-foreground">{addr.phone}</p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {[
+                                        addr.streetAddress,
+                                        addr.ward ? `Ward ${addr.ward}` : null,
+                                        addr.municipality,
+                                        addr.district,
+                                        addr.province,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(", ")}
+                                    </p>
+                                  </div>
+                                  {addr.isDefault && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Default
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                          <Separator className="my-4" />
+                          <p className="text-sm font-medium mb-3">Or enter a new address</p>
                         </div>
-                        <Separator className="my-4" />
-                        <p className="text-sm font-medium mb-3">Or enter a new address</p>
-                      </div>
-                    )}
+                      )}
 
-                    {user ? (
                       <AddressForm
                         defaultValues={shippingAddress || undefined}
                         onSubmit={handleAddressSubmit}
@@ -454,21 +541,10 @@ export default function CheckoutPage() {
                         requireEmail={false}
                         isGuest={false}
                       />
-                    ) : (
-                      <DirectAddressForm
-                        defaultValues={{
-                          fullName: shippingAddress?.fullName || "",
-                          phone: shippingAddress?.phone || "",
-                          address: shippingAddress?.streetAddress || "",
-                        }}
-                        onSubmit={handleDirectAddressSubmit}
-                        submitLabel="Continue to Payment"
-                      />
-                    )}
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
 
                 {/* Step 1: Payment */}
                 {step === 1 && (
@@ -635,9 +711,10 @@ export default function CheckoutPage() {
                 )}
               </AnimatePresence>
             </div>
+          )}
 
-            {/* Right: Order Summary */}
-            <div>
+          {/* Right: Order Summary */}
+          <div>
               <Card className="sticky top-24">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">Order Summary</CardTitle>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LayoutGrid, Heart, ShoppingBag, User, ShieldCheck } from "lucide-react";
+import { Home, LayoutGrid, Heart, ShoppingBag, User, ShieldCheck, Package } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,10 +54,14 @@ export default function MobileBottomNav() {
       isActive: pathname.startsWith("/cart"),
     },
     {
-      label: isAdmin ? "Admin" : user ? "Account" : "Profile",
-      href: isAdmin ? "/admin" : user ? "/profile" : "/login",
-      icon: isAdmin ? ShieldCheck : User,
-      isActive: pathname.startsWith("/admin") || pathname.startsWith("/profile") || pathname.startsWith("/login"),
+      label: isAdmin ? "Admin" : user ? "Account" : "My Orders",
+      href: isAdmin ? "/admin" : user ? "/profile" : "/orders",
+      icon: isAdmin ? ShieldCheck : user ? User : Package,
+      isActive: isAdmin
+        ? pathname.startsWith("/admin")
+        : user
+        ? (pathname.startsWith("/profile") || pathname.startsWith("/orders"))
+        : pathname.startsWith("/orders"),
     },
   ];
 

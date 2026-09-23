@@ -122,6 +122,11 @@ export default function Navbar({ categories = [] }: NavbarProps) {
           </div>
 
           <div className="hidden lg:flex items-center gap-4 text-slate-400">
+            <Link href="/orders" className="flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
+              <Package className="h-3.5 w-3.5 text-cyan-400" />
+              <span>My Orders</span>
+            </Link>
+            <span className="text-slate-800">|</span>
             <span className="flex items-center gap-1 text-slate-300">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> 100% Genuine Guarantee
             </span>
@@ -389,6 +394,17 @@ export default function Navbar({ categories = [] }: NavbarProps) {
                 </DropdownMenu>
               ) : (
                 <div className="hidden sm:flex items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-slate-200 hover:text-white hover:bg-slate-800/80 font-semibold gap-1.5"
+                    asChild
+                  >
+                    <Link href="/orders">
+                      <Package className="h-4 w-4 text-cyan-400" />
+                      <span>My Orders</span>
+                    </Link>
+                  </Button>
                   <Button variant="ghost" size="sm" className="text-slate-200 hover:text-white hover:bg-slate-800/80 font-semibold" asChild>
                     <Link href="/login">Login</Link>
                   </Button>
@@ -516,7 +532,7 @@ export default function Navbar({ categories = [] }: NavbarProps) {
                 <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-black">
                   Account
                 </p>
-                {user && (
+                {user ? (
                   <>
                     {isAdmin && (
                       <Link
@@ -543,6 +559,21 @@ export default function Navbar({ categories = [] }: NavbarProps) {
                     >
                       <LogOut className="h-4 w-4" /> Logout
                     </button>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/orders" className="flex items-center gap-3 rounded-lg p-2.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-100" onClick={() => setMobileMenuOpen(false)}>
+                      <Package className="h-4 w-4 text-blue-600" /> My Orders
+                    </Link>
+                    <Link href="/wishlist" className="flex items-center gap-3 rounded-lg p-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-100" onClick={() => setMobileMenuOpen(false)}>
+                      <Heart className="h-4 w-4" /> Wishlist ({wishlistCount})
+                    </Link>
+                    <Link href="/login" className="flex items-center gap-3 rounded-lg p-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-100" onClick={() => setMobileMenuOpen(false)}>
+                      <User className="h-4 w-4" /> Login
+                    </Link>
+                    <Link href="/register" className="flex items-center gap-3 rounded-lg p-2.5 text-sm font-bold text-blue-600 hover:bg-neutral-100" onClick={() => setMobileMenuOpen(false)}>
+                      <User className="h-4 w-4" /> Register
+                    </Link>
                   </>
                 )}
               </div>
