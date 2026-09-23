@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import AddressForm, { type AddressFormData } from "@/components/checkout/AddressForm";
+import DirectAddressForm, { type DirectAddressFormData } from "@/components/checkout/DirectAddressForm";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/utils";
@@ -68,12 +69,10 @@ const PAYMENT_METHODS: {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile } = useAuth();
   const { items, subtotal, clearCart } = useCart();
 
   const [step, setStep] = useState(0);
-  const [isGuestMode, setIsGuestMode] = useState(false);
-  const [guestEmail, setGuestEmail] = useState("");
   const [shippingAddress, setShippingAddress] = useState<DeliveryAddress | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [couponCode, setCouponCode] = useState("");
@@ -93,34 +92,29 @@ export default function CheckoutPage() {
 
   // Recalculate shipping when address changes
   useEffect(() => {
-    if (shippingAddress?.district) {
-      calculateShippingCharge(shippingAddress.district, subtotal).then((info) => {
-        setShippingCharge(info.charge);
-        setShippingInfo({ estimatedDays: info.estimatedDays, zoneName: info.zoneName });
-      });
-    }
+    calculateShippingCharge(shippingAddress?.district || "", subtotal).then((info) => {
+      setShippingCharge(info.charge);
+      setShippingInfo({ estimatedDays: info.estimatedDays, zoneName: info.zoneName });
+    });
   }, [shippingAddress?.district, subtotal]);
 
   const discount = couponResult?.valid ? couponResult.discountAmount ?? 0 : 0;
   const total = subtotal + shippingCharge - discount;
 
+  // Handler for authenticated user full address form
   const handleAddressSubmit = async (data: AddressFormData) => {
     const address: DeliveryAddress = {
-      fullName: data.fullName,
-      phone: data.phone,
-      alternatePhone: data.alternatePhone,
+      fullName: data.fullName.trim(),
+      phone: data.phone.trim(),
+      alternatePhone: data.alternatePhone?.trim() || "",
       province: data.province,
       district: data.district,
       municipality: data.municipality,
       ward: Number(data.ward),
-      streetAddress: data.streetAddress,
-      landmark: data.landmark,
+      streetAddress: data.streetAddress.trim(),
+      landmark: data.landmark?.trim() || "",
       isDefault: Boolean(data.isDefault),
     };
-
-    if (data.email) {
-      setGuestEmail(data.email);
-    }
 
     setShippingAddress(address);
 
@@ -132,6 +126,19 @@ export default function CheckoutPage() {
       }
     }
 
+    setStep(1);
+  };
+
+  // Handler for unauthenticated direct buyer simple address form (Name, Contact Number, Address)
+  const handleDirectAddressSubmit = (data: DirectAddressFormData) => {
+    const address: DeliveryAddress = {
+      fullName: data.fullName.trim(),
+      phone: data.phone.trim(),
+      streetAddress: data.address.trim(),
+      isDefault: false,
+    };
+
+    setShippingAddress(address);
     setStep(1);
   };
 
@@ -155,7 +162,6 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = async () => {
     if (!shippingAddress) return;
-    if (!user && !isGuestMode) return;
     setIsPlacingOrder(true);
 
     try {
@@ -171,9 +177,7 @@ export default function CheckoutPage() {
       }));
 
       const isGuest = !user;
-      const orderEmail = isGuest
-        ? guestEmail || ""
-        : user.email || "";
+      const orderEmail = isGuest ? "" : (user?.email || "");
       const orderName = isGuest
         ? shippingAddress.fullName
         : profile?.displayName || user.email || shippingAddress.fullName;
@@ -271,9 +275,9 @@ export default function CheckoutPage() {
   };
 
   const initiateKhaltiPayment = async (orderId: string, amount: number, orderNumber: string) => {
-    const customerName = user ? profile?.displayName || user.email : shippingAddress?.fullName;
-    const customerEmail = user ? user.email : guestEmail;
-    const customerPhone = user ? profile?.phone || shippingAddress?.phone : shippingAddress?.phone;
+    const customerName = user ? (profile?.displayName || user.email) : shippingAddress?.fullName;
+    const customerEmail = user?.email || undefined;
+    const customerPhone = user ? (profile?.phone || shippingAddress?.phone) : shippingAddress?.phone;
 
     const response = await fetch("/api/payments/khalti", {
       method: "POST",
@@ -298,8 +302,6 @@ export default function CheckoutPage() {
 
   if (items.length === 0) return null;
 
-  const showAuthChoice = !authLoading && !user && !isGuestMode;
-
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
@@ -309,256 +311,164 @@ export default function CheckoutPage() {
             Complete your order with secure delivery and flexible payment options
           </p>
         </div>
-        {!user && isGuestMode && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsGuestMode(false)}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            ← Change Checkout Option
-          </Button>
-        )}
       </div>
 
-      {/* Show Auth Choice (Login vs Continue as Guest) when unauthenticated */}
-      {showAuthChoice ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="border-2 border-primary/20 shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xl">How would you like to checkout?</CardTitle>
-                <CardDescription>
-                  Choose whether you want to sign in for saved addresses and loyalty rewards, or checkout quickly as a guest.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Option 1: Login / Register */}
-                  <div className="border rounded-xl p-5 flex flex-col justify-between hover:border-primary/60 transition-all bg-card shadow-2xs group">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                          <LogIn className="h-5 w-5" />
-                        </div>
-                        <Badge variant="secondary" className="text-xs font-semibold">Recommended</Badge>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-base text-foreground group-hover:text-primary transition-colors">
-                          Sign In / Register
-                        </h3>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          Access your saved delivery addresses, track previous orders, and enjoy faster 1-click checkout.
-                        </p>
-                      </div>
-                      <ul className="text-xs text-muted-foreground space-y-1.5 pt-1">
-                        <li className="flex items-center gap-1.5 text-foreground/80">
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                          <span>Saved addresses & phone numbers</span>
-                        </li>
-                        <li className="flex items-center gap-1.5 text-foreground/80">
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                          <span>Centralized order history & tracking</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    <div className="pt-5 space-y-2">
-                      <Button asChild className="w-full gap-2 font-medium">
-                        <Link href="/login?redirect=/checkout">
-                          <LogIn className="h-4 w-4" /> Sign In
-                        </Link>
-                      </Button>
-                      <Button asChild variant="outline" className="w-full text-xs">
-                        <Link href="/register?redirect=/checkout">
-                          <UserPlus className="h-3.5 w-3.5 mr-1" /> Create New Account
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Option 2: Continue as Guest */}
-                  <div className="border-2 border-dashed border-primary/40 rounded-xl p-5 flex flex-col justify-between hover:border-primary transition-all bg-primary/5 shadow-2xs group">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="h-10 w-10 rounded-lg bg-primary text-white flex items-center justify-center">
-                          <ShoppingBag className="h-5 w-5" />
-                        </div>
-                        <Badge className="bg-emerald-600 text-white text-xs font-semibold">Fastest</Badge>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-base text-foreground group-hover:text-primary transition-colors">
-                          Continue as Guest
-                        </h3>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          No account or password needed. Provide your address and contact email, and we will process your order instantly.
-                        </p>
-                      </div>
-                      <ul className="text-xs text-muted-foreground space-y-1.5 pt-1">
-                        <li className="flex items-center gap-1.5 text-foreground/80">
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                          <span>Zero signup or password required</span>
-                        </li>
-                        <li className="flex items-center gap-1.5 text-foreground/80">
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                          <span>Full order tracking via secure link</span>
-                        </li>
-                        <li className="flex items-center gap-1.5 text-foreground/80">
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                          <span>Link to account anytime in the future</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    <div className="pt-5">
-                      <Button
-                        onClick={() => setIsGuestMode(true)}
-                        className="w-full gap-2 bg-foreground text-background hover:bg-foreground/90 font-medium"
-                      >
-                        <UserCheck className="h-4 w-4" /> Continue as Guest <ArrowRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg bg-muted/40 p-3 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  <span>All checkout data is protected with 256-bit SSL encryption. eSewa, Khalti & COD supported.</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Summary */}
-          <div>
-            <Card className="sticky top-24">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Order Summary ({items.length} items)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {items.map((item) => (
-                  <div key={`${item.productId}-${JSON.stringify(item.variant)}`} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground line-clamp-1 flex-1 mr-2">
-                      {item.name} ×{item.quantity}
-                    </span>
-                    <span className="font-medium flex-shrink-0">{formatCurrency(item.price * item.quantity)}</span>
-                  </div>
-                ))}
-                <Separator />
-                <div className="space-y-1.5 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>{formatCurrency(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Estimated Shipping</span>
-                    <span>{formatCurrency(shippingCharge)}</span>
-                  </div>
-                </div>
-                <Separator />
-                <div className="flex justify-between font-bold text-base">
-                  <span>Total</span>
-                  <span className="text-primary">{formatCurrency(total)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Step Indicator */}
-          <div className="flex items-center justify-center mb-10">
-            {STEPS.map((s, i) => (
-              <React.Fragment key={s}>
-                <div className="flex flex-col items-center">
-                  <div className={cn(
-                    "h-9 w-9 rounded-full flex items-center justify-center font-semibold text-sm transition-all",
-                    i < step ? "bg-green-500 text-white" :
-                    i === step ? "bg-primary text-white" :
-                    "bg-muted text-muted-foreground"
-                  )}>
-                    {i < step ? <CheckCircle className="h-5 w-5" /> : i + 1}
-                  </div>
-                  <span className={cn(
-                    "text-xs mt-1 font-medium",
-                    i === step ? "text-primary" : "text-muted-foreground"
-                  )}>{s}</span>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div className={cn("flex-1 h-0.5 mx-2 mb-4", i < step ? "bg-green-500" : "bg-muted")} />
+      {/* Step Indicator */}
+      <div className="flex items-center justify-center mb-10">
+        {STEPS.map((s, i) => (
+          <React.Fragment key={s}>
+            <div className="flex flex-col items-center">
+              <div
+                className={cn(
+                  "h-9 w-9 rounded-full flex items-center justify-center font-semibold text-sm transition-all",
+                  i < step
+                    ? "bg-green-500 text-white"
+                    : i === step
+                    ? "bg-primary text-white"
+                    : "bg-muted text-muted-foreground"
                 )}
-              </React.Fragment>
-            ))}
-          </div>
+              >
+                {i < step ? <CheckCircle className="h-5 w-5" /> : i + 1}
+              </div>
+              <span
+                className={cn(
+                  "text-xs mt-1 font-medium",
+                  i === step ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                {s}
+              </span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div
+                className={cn(
+                  "flex-1 h-0.5 mx-2 mb-4",
+                  i < step ? "bg-green-500" : "bg-muted"
+                )}
+              />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left: Steps */}
-            <div className="lg:col-span-2">
-              <AnimatePresence mode="wait">
-                {/* Step 0: Address */}
-                {step === 0 && (
-                  <motion.div key="address" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                    <Card>
-                      <CardHeader>
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <CardTitle className="flex items-center gap-2">
-                            <MapPin className="h-5 w-5 text-primary" /> Delivery Address
-                          </CardTitle>
-                          {!user && (
-                            <Badge variant="outline" className="text-xs bg-muted/50">
-                              Guest Checkout Mode
-                            </Badge>
-                          )}
-                        </div>
-                        {!user && (
-                          <CardDescription>
-                            Please enter your delivery address and contact email. Your order confirmation & tracking link will be delivered to this email.
-                          </CardDescription>
-                        )}
-                      </CardHeader>
-                      <CardContent>
-                        {/* Saved addresses for authenticated users */}
-                        {user && profile?.addresses && profile.addresses.length > 0 && (
-                          <div className="mb-6">
-                            <p className="text-sm font-medium mb-3">Saved Addresses</p>
-                            <div className="space-y-2">
-                              {profile.addresses.map((addr) => (
-                                <div
-                                  key={addr.id}
-                                  onClick={() => { setShippingAddress(addr); setStep(1); }}
-                                  className={cn(
-                                    "border rounded-lg p-3 cursor-pointer transition-all hover:border-primary",
-                                    shippingAddress?.id === addr.id ? "border-primary bg-primary/5" : ""
-                                  )}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div>
-                                      <p className="font-medium text-sm">{addr.fullName}</p>
-                                      <p className="text-xs text-muted-foreground">{addr.phone}</p>
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        {addr.streetAddress}, Ward {addr.ward}, {addr.municipality}, {addr.district}, {addr.province}
-                                      </p>
-                                    </div>
-                                    {addr.isDefault && <Badge variant="outline" className="text-xs">Default</Badge>}
-                                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left: Steps */}
+        <div className="lg:col-span-2">
+          <AnimatePresence mode="wait">
+            {/* Step 0: Address */}
+            {step === 0 && (
+              <motion.div
+                key="address"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5 text-primary" /> Delivery Address
+                      </CardTitle>
+                      {!user && (
+                        <Badge variant="outline" className="text-xs bg-muted/50">
+                          Direct Checkout
+                        </Badge>
+                      )}
+                    </div>
+                    <CardDescription>
+                      {user
+                        ? "Confirm or select your delivery address for this order."
+                        : "Enter your name, contact number, and complete delivery address to place your order directly."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Optional Sign-in Banner for direct unauthenticated buyers */}
+                    {!user && (
+                      <div className="flex items-center justify-between p-3.5 mb-5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                        <span className="text-foreground font-medium">
+                          Direct purchase — No login or password required.
+                        </span>
+                        <Link
+                          href="/login?redirect=/checkout"
+                          className="font-semibold text-primary hover:underline flex items-center gap-1 shrink-0 ml-2"
+                        >
+                          <LogIn className="h-3.5 w-3.5" /> Sign in for saved addresses
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Saved addresses for authenticated users */}
+                    {user && profile?.addresses && profile.addresses.length > 0 && (
+                      <div className="mb-6">
+                        <p className="text-sm font-medium mb-3">Saved Addresses</p>
+                        <div className="space-y-2">
+                          {profile.addresses.map((addr) => (
+                            <div
+                              key={addr.id}
+                              onClick={() => {
+                                setShippingAddress(addr);
+                                setStep(1);
+                              }}
+                              className={cn(
+                                "border rounded-lg p-3 cursor-pointer transition-all hover:border-primary",
+                                shippingAddress?.id === addr.id
+                                  ? "border-primary bg-primary/5"
+                                  : ""
+                              )}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <p className="font-medium text-sm">{addr.fullName}</p>
+                                  <p className="text-xs text-muted-foreground">{addr.phone}</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {[
+                                      addr.streetAddress,
+                                      addr.ward ? `Ward ${addr.ward}` : null,
+                                      addr.municipality,
+                                      addr.district,
+                                      addr.province,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(", ")}
+                                  </p>
                                 </div>
-                              ))}
+                                {addr.isDefault && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Default
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-                            <Separator className="my-4" />
-                            <p className="text-sm font-medium mb-3">Or enter a new address</p>
-                          </div>
-                        )}
-                        <AddressForm
-                          defaultValues={shippingAddress || undefined}
-                          onSubmit={handleAddressSubmit}
-                          submitLabel="Save & Continue to Payment"
-                          requireEmail={!user}
-                          isGuest={!user}
-                        />
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                )}
+                          ))}
+                        </div>
+                        <Separator className="my-4" />
+                        <p className="text-sm font-medium mb-3">Or enter a new address</p>
+                      </div>
+                    )}
+
+                    {user ? (
+                      <AddressForm
+                        defaultValues={shippingAddress || undefined}
+                        onSubmit={handleAddressSubmit}
+                        submitLabel="Save & Continue to Payment"
+                        requireEmail={false}
+                        isGuest={false}
+                      />
+                    ) : (
+                      <DirectAddressForm
+                        defaultValues={{
+                          fullName: shippingAddress?.fullName || "",
+                          phone: shippingAddress?.phone || "",
+                          address: shippingAddress?.streetAddress || "",
+                        }}
+                        onSubmit={handleDirectAddressSubmit}
+                        submitLabel="Continue to Payment"
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
 
                 {/* Step 1: Payment */}
                 {step === 1 && (
@@ -661,11 +571,16 @@ export default function CheckoutPage() {
                           </div>
                           <p className="text-sm font-medium">{shippingAddress.fullName}</p>
                           <p className="text-sm text-muted-foreground">{shippingAddress.phone}</p>
-                          {!user && guestEmail && (
-                            <p className="text-sm text-primary font-medium mt-0.5">{guestEmail}</p>
-                          )}
                           <p className="text-sm text-muted-foreground mt-1">
-                            {shippingAddress.streetAddress}, Ward {shippingAddress.ward}, {shippingAddress.municipality}, {shippingAddress.district}, {shippingAddress.province}
+                            {[
+                              shippingAddress.streetAddress,
+                              shippingAddress.ward ? `Ward ${shippingAddress.ward}` : null,
+                              shippingAddress.municipality,
+                              shippingAddress.district,
+                              shippingAddress.province,
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
                           </p>
                           {shippingInfo.estimatedDays && (
                             <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
@@ -770,8 +685,6 @@ export default function CheckoutPage() {
               </Card>
             </div>
           </div>
-        </>
-      )}
-    </div>
-  );
-}
+        </div>
+      );
+    }

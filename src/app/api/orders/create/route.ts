@@ -78,12 +78,7 @@ export async function POST(request: NextRequest) {
       userId = "guest";
       // Generate a cryptographically secure 48-hex-character token
       guestAccessToken = crypto.randomBytes(24).toString("hex");
-      if (!userEmail) {
-        return NextResponse.json(
-          { error: "Email address is required for guest checkout to send confirmation & tracking" },
-          { status: 400 }
-        );
-      }
+      // Guest email is optional for unauthenticated direct buyers
     }
 
     const orderNumber = generateOrderId();
@@ -112,16 +107,18 @@ export async function POST(request: NextRequest) {
       ...(couponCode ? { couponCode: couponCode.toUpperCase() } : {}),
       total,
       shippingAddress: {
-        fullName: shippingAddress.fullName,
-        phone: shippingAddress.phone,
+        fullName: shippingAddress.fullName.trim(),
+        phone: shippingAddress.phone.trim(),
         alternatePhone: shippingAddress.alternatePhone || "",
-        province: shippingAddress.province,
-        district: shippingAddress.district,
-        municipality: shippingAddress.municipality,
-        ward: Number(shippingAddress.ward),
-        streetAddress: shippingAddress.streetAddress,
-        landmark: shippingAddress.landmark || "",
-        isDefault: false,
+        ...(shippingAddress.province ? { province: shippingAddress.province } : {}),
+        ...(shippingAddress.district ? { district: shippingAddress.district } : {}),
+        ...(shippingAddress.municipality ? { municipality: shippingAddress.municipality } : {}),
+        ...(shippingAddress.ward !== undefined && shippingAddress.ward !== null && !isNaN(Number(shippingAddress.ward))
+          ? { ward: Number(shippingAddress.ward) }
+          : {}),
+        streetAddress: shippingAddress.streetAddress.trim(),
+        ...(shippingAddress.landmark ? { landmark: shippingAddress.landmark } : {}),
+        isDefault: Boolean(shippingAddress.isDefault),
       },
       paymentMethod,
       paymentStatus: "pending" as const,
@@ -176,11 +173,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Trigger admin notification if COD
+    // Await admin notification for COD orders so it reliably completes in Vercel/serverless
     if (paymentMethod === "cod") {
-      sendAdminOrderNotification(orderId).catch((notifErr) => {
-        console.error(`[CreateOrderAPI] Admin notification error for COD order ${orderId}:`, notifErr);
-      });
+      try {
+        const notificationResult = await sendAdminOrderNotification(orderId);
+        console.log(
+          `[CreateOrderAPI] Admin notification result for COD order ${orderId}:`,
+          notificationResult
+        );
+      } catch (notifErr) {
+        console.error(
+          `[CreateOrderAPI] Unexpected error awaiting admin notification for COD order ${orderId}:`,
+          notifErr
+        );
+      }
     }
 
     const response = NextResponse.json({

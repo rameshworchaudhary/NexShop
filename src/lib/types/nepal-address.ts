@@ -20,13 +20,13 @@ export interface DeliveryAddress {
   fullName: string;
   phone: string;
   alternatePhone?: string;
-  province: string;
-  district: string;
-  municipality: string;
-  ward: number;
+  province?: string;
+  district?: string;
+  municipality?: string;
+  ward?: number;
   streetAddress: string;
   landmark?: string;
-  isDefault: boolean;
+  isDefault?: boolean;
 }
 
 export interface ShippingZone {

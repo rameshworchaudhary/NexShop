@@ -185,10 +185,13 @@ async function markOrderPaymentSuccess(
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  // Safe, non-blocking admin order notification (idempotent via atomic transaction)
-  sendAdminOrderNotification(orderId).catch((notifErr) => {
+  // Await admin order notification so it reliably runs in Vercel/serverless
+  try {
+    const notifResult = await sendAdminOrderNotification(orderId);
+    console.log(`[PaymentsVerify] Admin notification result for order ${orderId}:`, notifResult);
+  } catch (notifErr) {
     console.error(`[PaymentsVerify] Failed to dispatch admin notification for order ${orderId}:`, notifErr);
-  });
+  }
 
   return { success: true, guestAccessToken };
 }

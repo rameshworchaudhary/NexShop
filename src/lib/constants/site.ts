@@ -2,7 +2,7 @@ export const SITE_CONFIG = {
   name: "NexShop",
   tagline: "Sabai kura, ekai thau ma",
   description:
-    "NexShop is Nepal's premier online marketplace — shop electronics, fashion, groceries, home essentials and more with fast delivery across all 77 districts.",
+    "NexShop - Sabai kura, ekai thau ma | Nepal's Premium Online Marketplace",
   url: "https://nexshop.com.np",
   ogImage: "/images/og-image.jpg",
   links: {
