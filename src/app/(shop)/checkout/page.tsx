@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -82,10 +82,12 @@ export default function CheckoutPage() {
   const [shippingInfo, setShippingInfo] = useState({ estimatedDays: "3-7 days", zoneName: "" });
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [saveAddress, setSaveAddress] = useState(true);
+  const [isOrderSuccess, setIsOrderSuccess] = useState(false);
+  const isOrderSuccessRef = useRef(false);
 
   // Redirect if cart empty
   useEffect(() => {
-    if (items.length === 0) {
+    if (!isOrderSuccessRef.current && items.length === 0) {
       router.push("/cart");
     }
   }, [items, router]);
@@ -190,14 +192,14 @@ export default function CheckoutPage() {
         });
       }
 
+      isOrderSuccessRef.current = true;
+      setIsOrderSuccess(true);
       clearCart();
       toast.success("Order placed successfully!");
 
-      // DIRECT REDIRECT to existing Order Details page
-      const targetUrl = guestAccessToken
-        ? `/orders/${orderId}?token=${guestAccessToken}&success=true`
-        : `/orders/${orderId}?success=true`;
-      router.push(targetUrl);
+      setTimeout(() => {
+        router.push("/orders");
+      }, 1800);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Failed to place order. Please try again.";
       console.error("Guest order placement failed:", err);
@@ -300,12 +302,13 @@ export default function CheckoutPage() {
       } else if (paymentMethod === "khalti") {
         await initiateKhaltiPayment(orderId, total, orderNumber);
       } else {
+        isOrderSuccessRef.current = true;
+        setIsOrderSuccess(true);
         clearCart();
         toast.success("Order placed successfully!");
-        const targetUrl = isGuest && guestAccessToken
-          ? `/orders/${orderId}?success=true&token=${guestAccessToken}`
-          : `/orders/${orderId}?success=true`;
-        router.push(targetUrl);
+        setTimeout(() => {
+          router.push("/orders");
+        }, 1800);
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Failed to place order. Please try again.";
@@ -364,6 +367,22 @@ export default function CheckoutPage() {
       toast.error("Failed to initiate Khalti payment");
     }
   };
+
+  if (isOrderSuccess) {
+    return (
+      <div className="container mx-auto px-4 py-20 flex flex-col items-center justify-center min-h-[50vh] text-center">
+        <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+          <CheckCircle className="h-9 w-9 text-green-600" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground">
+          Your order has been placed successfully!
+        </h2>
+        <p className="text-sm text-muted-foreground mt-2">
+          Redirecting to your orders...
+        </p>
+      </div>
+    );
+  }
 
   if (items.length === 0) return null;
 
