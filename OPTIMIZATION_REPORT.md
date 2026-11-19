@@ -14,6 +14,7 @@
 - A Firestore data update can only affect prerendered homepage HTML after its normal revalidation; this report does not change revalidation settings or deploy code.
 - Verification: `firebase projects:list --json` lists `meropasal-ce87a` as `ACTIVE`; `node --check scripts/migrate-banner-data-uris.mjs` passes. Running the script's read-only default stops with “Could not load the default credentials” before reading Firestore. No browser, image URL, or post-migration HTML test was possible.
 - Current source checks: `npx tsc --noEmit` passed; `npm run lint` passed with 0 errors and 25 existing warnings; `npm run build` passed with all 35 static pages generated; `git diff --check` passed with line-ending notices only. End-to-end customer/admin flows were not run, and no deployment was made.
+- GitHub sync: verified source changes, this report, the exact mapping report, and guarded migration script were pushed to `origin/fix-isr-manual` in commit `b83f7c2` without force. This did not deploy production.
 
 ## Homepage payload investigation and safe follow-up (November 19, 2026)
 
