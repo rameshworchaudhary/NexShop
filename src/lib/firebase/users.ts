@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  runTransaction,
   updateDoc,
   query,
   where,
@@ -101,18 +102,21 @@ export async function toggleWishlistItem(uid: string, productId: string): Promis
 
 export async function recordRecentlyViewed(uid: string, productId: string): Promise<void> {
   const ref = doc(db, COLLECTIONS.USERS, uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists()) return;
 
-  const data = snap.data();
-  const recentlyViewed: RecentlyViewedItem[] = data.recentlyViewed || [];
-  const filtered = recentlyViewed.filter((item) => item.productId !== productId);
-  const updated: RecentlyViewedItem[] = [
-    { productId, viewedAt: new Date().toISOString() },
-    ...filtered,
-  ].slice(0, 20);
+    const recentlyViewed: RecentlyViewedItem[] = snap.data().recentlyViewed || [];
+    if (recentlyViewed[0]?.productId === productId) return;
 
-  await updateDoc(ref, { recentlyViewed: updated, updatedAt: serverTimestamp() });
+    const filtered = recentlyViewed.filter((item) => item.productId !== productId);
+    const updated: RecentlyViewedItem[] = [
+      { productId, viewedAt: new Date().toISOString() },
+      ...filtered,
+    ].slice(0, 20);
+
+    transaction.update(ref, { recentlyViewed: updated, updatedAt: serverTimestamp() });
+  });
 }
 
 export async function getAllCustomers(): Promise<UserProfile[]> {

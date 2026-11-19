@@ -28,16 +28,30 @@ export default function ProductGridInfinite({
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [loading, setLoading] = useState<boolean>(false);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const requestInFlight = useRef(false);
+  const activeRequest = useRef<AbortController | null>(null);
 
   // Sync state when initial props or filters change (e.g. user clicked a filter or sorted)
   useEffect(() => {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    requestInFlight.current = false;
     setProducts(initialProducts);
     setPage(1);
     setHasMore(initialHasMore);
+    setLoading(false);
+    return () => {
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+      requestInFlight.current = false;
+    };
   }, [initialProducts, initialHasMore, filters]);
 
   const loadMore = useCallback(async () => {
-    if (loading || !hasMore) return;
+    if (requestInFlight.current || loading || !hasMore) return;
+    requestInFlight.current = true;
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setLoading(true);
 
     try {
@@ -56,10 +70,13 @@ export default function ProductGridInfinite({
       if (filters.inStock) params.set("inStock", "true");
       if (filters.brand && filters.brand.length > 0) params.set("brand", filters.brand.join(","));
 
-      const res = await fetch(`/api/products?${params.toString()}`);
+      const res = await fetch(`/api/products?${params.toString()}`, {
+        signal: controller.signal,
+      });
       if (!res.ok) throw new Error("Failed to fetch next batch");
 
       const data = await res.json();
+      if (controller.signal.aborted) return;
       if (data.products && Array.isArray(data.products)) {
         setProducts((prev) => {
           // Avoid duplicate product IDs
@@ -71,9 +88,15 @@ export default function ProductGridInfinite({
         setHasMore(Boolean(data.hasMore));
       }
     } catch (err) {
-      console.error("Error loading more products:", err);
+      if (!controller.signal.aborted) {
+        console.error("Error loading more products:", err);
+      }
     } finally {
-      setLoading(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        requestInFlight.current = false;
+        setLoading(false);
+      }
     }
   }, [loading, hasMore, page, filters]);
 

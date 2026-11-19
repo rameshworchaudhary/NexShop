@@ -9,8 +9,10 @@ import { cn } from "@/lib/utils";
 import type { Banner } from "@/lib/types/banner";
 
 interface HeroBannerProps {
-  banners: Banner[];
+  banners: HeroBannerItem[];
 }
+
+type HeroBannerItem = Pick<Banner, "id" | "title" | "image" | "linkType" | "linkValue">;
 
 const FALLBACK_BANNERS = [
   {
@@ -63,10 +65,9 @@ const FALLBACK_BANNERS = [
 const DEFAULT_HERO_BACKUP =
   "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1600&q=80";
 
-function resolveBannerHref(slide: Banner | (typeof FALLBACK_BANNERS)[0]): string {
+function resolveBannerHref(slide: HeroBannerItem | (typeof FALLBACK_BANNERS)[0]): string {
   if ("linkType" in slide) {
-    const banner = slide as Banner;
-    const { linkType, linkValue, title } = banner;
+    const { linkType, linkValue, title } = slide;
 
     if (linkType === "category" && linkValue) {
       return `/categories/${linkValue}`;
@@ -86,7 +87,7 @@ function resolveBannerHref(slide: Banner | (typeof FALLBACK_BANNERS)[0]): string
     return "/products";
   }
 
-  const fallbackSlide = slide as (typeof FALLBACK_BANNERS)[0];
+  const fallbackSlide = slide;
   if (
     fallbackSlide.linkValue &&
     fallbackSlide.linkValue !== "/products" &&
@@ -122,11 +123,8 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
     return () => clearInterval(interval);
   }, [next, isPaused, slides.length]);
 
-  const getSlideImage = (slide: Banner | (typeof FALLBACK_BANNERS)[0], idx: number) => {
-    const raw =
-      (slide as Banner).image ||
-      (slide as (typeof FALLBACK_BANNERS)[0]).image ||
-      DEFAULT_HERO_BACKUP;
+  const getSlideImage = (slide: HeroBannerItem | (typeof FALLBACK_BANNERS)[0], idx: number) => {
+    const raw = slide.image || DEFAULT_HERO_BACKUP;
     const slideId = slide.id || `slide-${idx}`;
     return failedImages[slideId] ? DEFAULT_HERO_BACKUP : raw;
   };
@@ -168,16 +166,15 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
                   <Link
                     href={resolveBannerHref(slide)}
                     className="relative block w-full aspect-[16/9] cursor-pointer overflow-hidden rounded-2xl lg:rounded-3xl bg-slate-100"
-                    aria-label={(slide as Banner).title || "Promotional Banner"}
+                    aria-label={slide.title || "Promotional Banner"}
                   >
                     <Image
                       src={imgUrl}
-                      alt={(slide as Banner).title || "NexShop Hero Banner"}
+                      alt={slide.title || "NexShop Hero Banner"}
                       fill
                       sizes="(max-width: 768px) 100vw, 33vw"
                       className="object-contain rounded-2xl lg:rounded-3xl transition-transform duration-300 hover:scale-[1.02]"
                       priority={gridPos === 0}
-                      quality={85}
                       onError={() => {
                         const sId = slide.id || `slide-${slideIndex}`;
                         setFailedImages((prev) => ({ ...prev, [sId]: true }));
