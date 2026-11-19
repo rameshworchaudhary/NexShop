@@ -4,11 +4,6 @@ import React, { useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { Category } from "@/lib/types/category";
-
-interface CategoryBarProps {
-  categories?: Category[];
-}
 
 const CATEGORY_ITEMS = [
   { name: "For You", slug: "for-you", icon: "✨" },
@@ -26,7 +21,7 @@ const CATEGORY_ITEMS = [
   { name: "2 Wheelers", slug: "2-wheelers", icon: "🏍️" },
 ];
 
-export default function CategoryBar({ categories = [] }: CategoryBarProps) {
+export default function CategoryBar() {
   const pathname = usePathname();
   const scrollRef = useRef<HTMLDivElement>(null);
 

@@ -2,12 +2,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProducts } from "@/lib/firebase/products";
 import type { ProductFilters } from "@/lib/types/product";
 
+// The infinite-scroll client requests 20 products per page. Keep the API cap in
+// sync with that caller while allowing substantial catalog depth (20,000 rows).
+const MAX_PAGE_SIZE = 20;
+const MAX_PAGE = 1_000;
+
+function parsePositiveInteger(
+  value: string | null,
+  defaultValue: number,
+  maximum: number
+): number | null {
+  if (value === null) return defaultValue;
+  if (!/^\d+$/.test(value)) return null;
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) return null;
+  return parsed;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
-    
-    const page = parseInt(searchParams.get("page") || "1", 10);
-    const pageSize = parseInt(searchParams.get("pageSize") || "20", 10);
+
+    const page = parsePositiveInteger(searchParams.get("page"), 1, MAX_PAGE);
+    const pageSize = parsePositiveInteger(searchParams.get("pageSize"), 20, MAX_PAGE_SIZE);
+    if (page === null || pageSize === null) {
+      return NextResponse.json(
+        { error: `page must be an integer from 1 to ${MAX_PAGE}; pageSize must be an integer from 1 to ${MAX_PAGE_SIZE}` },
+        { status: 400 }
+      );
+    }
     
     const categoryId = searchParams.get("categoryId") || undefined;
     const subCategoryId = searchParams.get("subCategoryId") || undefined;

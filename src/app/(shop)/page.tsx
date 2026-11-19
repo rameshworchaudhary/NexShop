@@ -10,7 +10,6 @@ import CustomerReviews from "@/components/home/CustomerReviews";
 import WhyChooseUs from "@/components/home/WhyChooseUs";
 import NepalPaymentBar from "@/components/home/NepalPaymentBar";
 import NewsletterSection from "@/components/home/NewsletterSection";
-import { getActiveCategories } from "@/lib/firebase/categories";
 import { getActiveBannersByPosition } from "@/lib/firebase/banners";
 import { getHomepageSections } from "@/lib/firebase/products";
 import { SITE_CONFIG } from "@/lib/constants/site";
@@ -24,17 +23,15 @@ export const revalidate = 3600;
 
 export default async function HomePage() {
   // Fetch all homepage data in parallel
-  const [heroBanners, secondaryBanners, categories, productSections] =
+  const [heroBanners, secondaryBanners, productSections] =
     await Promise.allSettled([
       getActiveBannersByPosition("hero"),
       getActiveBannersByPosition("secondary"),
-      getActiveCategories(),
       getHomepageSections(12),
     ]);
 
   const hero = heroBanners.status === "fulfilled" ? heroBanners.value : [];
   const secondary = secondaryBanners.status === "fulfilled" ? secondaryBanners.value : [];
-  const cats = categories.status === "fulfilled" ? categories.value : [];
   const sections = productSections.status === "fulfilled" ? productSections.value : { featured: [], trending: [], newArrivals: [] };
 
   const featured = sections.featured;
@@ -44,7 +41,7 @@ export default async function HomePage() {
   return (
     <div className="pb-10 bg-neutral-50 min-h-screen">
       {/* 1. Horizontal Category Navigation Bar */}
-      <CategoryBar categories={cats} />
+      <CategoryBar />
 
       {/* 2. Hero Section */}
       <HeroBanner banners={hero} />

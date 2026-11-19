@@ -177,7 +177,6 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
                       sizes="(max-width: 768px) 100vw, 33vw"
                       className="object-contain rounded-2xl lg:rounded-3xl transition-transform duration-300 hover:scale-[1.02]"
                       priority={gridPos === 0}
-                      quality={85}
                       onError={() => {
                         const sId = slide.id || `slide-${slideIndex}`;
                         setFailedImages((prev) => ({ ...prev, [sId]: true }));

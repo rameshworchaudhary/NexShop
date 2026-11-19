@@ -18,12 +18,14 @@ interface ProductCardProps {
   product: Product;
   className?: string;
   showQuickAdd?: boolean;
+  imageSizes?: string;
 }
 
 export default function ProductCard({
   product,
   className,
   showQuickAdd = true,
+  imageSizes = "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw",
 }: ProductCardProps) {
   const [imageError, setImageError] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -144,7 +146,7 @@ export default function ProductCard({
             fill
             className="object-contain p-2 transition-transform duration-300 group-hover:scale-105"
             onError={() => setImageError(true)}
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            sizes={imageSizes}
             referrerPolicy="no-referrer"
           />
 

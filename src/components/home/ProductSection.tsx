@@ -67,7 +67,10 @@ export default function ProductSection({
               ))
             : products.slice(0, 10).map((product) => (
                 <div key={product.id}>
-                  <ProductCard product={product} />
+                  <ProductCard
+                    product={product}
+                    imageSizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                  />
                 </div>
               ))}
         </div>

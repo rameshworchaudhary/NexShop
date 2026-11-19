@@ -96,7 +96,10 @@ export default function FlashSaleSection({ products }: FlashSaleSectionProps) {
                 transition={{ delay: Math.min(index * 0.03, 0.3) }}
                 className="flex flex-col justify-between"
               >
-                <ProductCard product={product} />
+                <ProductCard
+                  product={product}
+                  imageSizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                />
 
                 {/* Stock progress bar */}
                 <div className="mt-2 px-1">
