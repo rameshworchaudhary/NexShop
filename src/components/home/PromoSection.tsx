@@ -7,8 +7,10 @@ import { motion } from "framer-motion";
 import type { Banner } from "@/lib/types/banner";
 
 interface PromoSectionProps {
-  banners: Banner[];
+  banners: PromoBannerItem[];
 }
+
+type PromoBannerItem = Pick<Banner, "id" | "title" | "subtitle" | "image" | "linkValue">;
 
 const FALLBACK_PROMOS = [
   {
@@ -56,10 +58,10 @@ export default function PromoSection({ banners }: PromoSectionProps) {
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {promos.slice(0, 3).map((promo, index) => {
-            const href = (promo as Banner).linkValue || (promo as (typeof FALLBACK_PROMOS)[0]).linkValue || "/products";
-            const rawImage = (promo as Banner).image || (promo as (typeof FALLBACK_PROMOS)[0]).image;
-            const backupImage = (promo as (typeof FALLBACK_PROMOS)[0]).backupImage || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=800&q=80";
-            const subtitle = (promo as Banner).subtitle || (promo as (typeof FALLBACK_PROMOS)[0]).subtitle;
+            const href = promo.linkValue || "/products";
+            const rawImage = promo.image;
+            const backupImage = ("backupImage" in promo && typeof promo.backupImage === "string" ? promo.backupImage : undefined) || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=800&q=80";
+            const subtitle = promo.subtitle;
 
             const isFailed = failedPromoImages[promo.id];
             const displayImage = isFailed ? backupImage : rawImage;

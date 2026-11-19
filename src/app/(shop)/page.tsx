@@ -30,8 +30,12 @@ export default async function HomePage() {
       getHomepageSections(12),
     ]);
 
-  const hero = heroBanners.status === "fulfilled" ? heroBanners.value : [];
-  const secondary = secondaryBanners.status === "fulfilled" ? secondaryBanners.value : [];
+  const hero = heroBanners.status === "fulfilled"
+    ? heroBanners.value.map(({ id, title, image, linkType, linkValue }) => ({ id, title, image, linkType, linkValue }))
+    : [];
+  const secondary = secondaryBanners.status === "fulfilled"
+    ? secondaryBanners.value.map(({ id, title, subtitle, image, linkValue }) => ({ id, title, subtitle, image, linkValue }))
+    : [];
   const sections = productSections.status === "fulfilled" ? productSections.value : { featured: [], trending: [], newArrivals: [] };
 
   const featured = sections.featured;

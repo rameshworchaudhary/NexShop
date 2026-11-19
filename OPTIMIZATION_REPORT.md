@@ -211,3 +211,10 @@ No counter behavior was changed. `incrementProductViewCount()` continues to coun
 - `npm run build`: passed on Next.js 16.2.12 with Turbopack; all 35 static-generation steps completed. Route classification matched the Phase 1 audit (`/` and `/categories` static with one-hour revalidation; products and slug routes dynamic).
 - `git diff --check`: passed. Git emitted only line-ending conversion notices for the three edited source files.
 - No dedicated automated tests exist for the API validation, Firestore transaction, or infinite-scroll interaction, and none were added per repository task instructions. API response compatibility was reviewed statically: successful response fields and cache headers are unchanged.
+
+## Banner payload source cleanup (2026-11-19)
+
+- `src/app/(shop)/page.tsx` now projects hero banner records to `id`, `title`, `image`, `linkType`, and `linkValue`, and promo banner records to `id`, `title`, `subtitle`, `image`, and `linkValue` before passing them to client components.
+- `HeroBanner` and `PromoSection` now declare these narrow input types and read their props directly. Fallback banner behavior, links, titles, images, slideshow behavior, and layout are unchanged.
+- This omits fields that these homepage components do not consume (such as display order, active/scheduling timestamps, and button text) from the server-to-client props. No production payload before/after sample was collected, so byte reduction and Fast Origin Transfer savings are **unmeasured**. The large inline JPEG data URIs remain and require the separate Storage migration.
+- Validation after this edit: `npx tsc --noEmit` passed; `npm run lint` passed with 0 errors and 25 existing warnings; `npm run build` passed and generated all 35 static pages; `git diff --check` and `node --check scripts/migrate-banner-data-uris.mjs` passed.
