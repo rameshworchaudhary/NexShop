@@ -1,12 +1,12 @@
 #NexShop - Nepal's modern e-commerce platform.
 
-A complete, production-ready Nepal-focused e-commerce platform built with Next.js 15, TypeScript, Firebase, and integrated eSewa/Khalti payments.
+A complete, production-ready Nepal-focused e-commerce platform built with Next.js 16, TypeScript, Firebase, and integrated eSewa/Khalti payments.
 
 ---
 
 ## 📦 Tech Stack
 
-- **Framework:** Next.js 15 (App Router) + TypeScript
+- **Framework:** Next.js 16 (App Router) + TypeScript
 - **Styling:** Tailwind CSS + ShadCN UI components
 - **Backend:** Firebase (Auth, Firestore, Storage)
 - **State:** Zustand
